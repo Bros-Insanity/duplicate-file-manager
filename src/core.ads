@@ -41,5 +41,5 @@ package Core is
    procedure Display_Duplicates(Hashes : String_Map);
    procedure Populate_Ignored_List(Ignore_File_Path : String; List_Of_Ignored : in out String_Set);
    
-   procedure Start_Searching(Folder_Path : String; Ignore_Path : String);
+   procedure Start_Searching(Folder_Path : String; Ignore_Path : String; Verbose_Mode : Boolean);
 end Core;

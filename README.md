@@ -21,7 +21,7 @@ You need gnat, and some libraries to be able to compile this project. All of the
 ### Build
 To build the application, run the following command :
 
-`gprbuild -d -P./duplicate-file-manager.gpr && sudo gprinstall -p -f -P./duplicate-file-manager.gpr --prefix=/usr --mode=usage`
+`gprbuild -d -P./duplicate_file_manager.gpr && sudo gprinstall -p -f -P./duplicate_file_manager.gpr --prefix=/usr --mode=usage`
 
 A whole command could be :
 
@@ -38,8 +38,16 @@ dfm [OPTIONS]
   -i, --ignore PATH   Path to ignore file."
                       Ignore file is a txt file that must contain each path, folder names or file names to be ignored during the research. The file must contain one (1) path or name per line."
   -s, --sample PATH   Get an ignore file sample at chosen path. If no path is provided, default path is $HOME."
+  -v, --verbose       Enable verbose mode, showing all the files processed.
 ```
 
 When navigating through files, you can press D to delete the selected file. This will open a confirmation pop-up and the file will be deleted if you press Y (yes).
 
 The tests were done on a Debian 13 system. Portage to Windows and macOS is considered...
+
+## Version changelog
+### 0.2
+- Added verbose mode
+
+### 0.1
+- First version

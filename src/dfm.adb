@@ -21,6 +21,7 @@ procedure DFM is
    Ignored : Unbounded_String := Null_Unbounded_String;
    Sample_Path : Unbounded_String := Null_Unbounded_String;
    Home : constant String := Ada.Environment_Variables.Value("HOME");
+   Verbose_Mode : Boolean := False;
 begin
    Folder := To_Unbounded_String(Home);
    while I <= Argument_Count loop
@@ -113,6 +114,9 @@ begin
                return;
             end if;
 
+         elsif Arg = "-v" or Arg = "--verbose" then
+            Verbose_Mode := True;
+
          else
             Display_Message(Red, "Error: unknown option '" & Arg & "'");
             Display_Help;
@@ -123,6 +127,6 @@ begin
       end;
    end loop;
    Put_Line("Selected folder: " & To_String(Folder));
-   Start_Searching(To_String(Folder), To_String(Ignored));
+   Start_Searching(To_String(Folder), To_String(Ignored), Verbose_Mode);
 
 end DFM;

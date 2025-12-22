@@ -217,7 +217,7 @@ package body Core is
    end Process_File;
    
 
-   procedure Loop_Rec(Path : String; Must_Ignore : Boolean; Hashes : in out String_Map; Ignored : in out String_Set) is
+   procedure Loop_Rec(Path : String; Must_Ignore : Boolean; Hashes : in out String_Map; Ignored : in out String_Set; Verbose_Mode : Boolean) is
       use Ada.Text_IO;
       use Ada.Directories;
       use Ada.Strings.Unbounded;
@@ -257,9 +257,15 @@ package body Core is
                         if not Ignored.Contains(Simple_Entry_Name) and not Ignored.Contains(Full_Name_Str) then
                            case Entry_Kind is
                               when Ordinary_File =>
+                                 if Verbose_Mode then
+                                    Display_Message(Blue, "Processing file " & Full_Name_Str);
+                                 end if;
                                  Process_File(Full_Name_Str, Hashes);
                               when Directory =>
-                                 Loop_Rec(Full_Name_Str, Must_Ignore, Hashes, Ignored);
+                                 if Verbose_Mode then
+                                    Display_Message(Blue, "Looping through directory " & Full_Name_Str);
+                                 end if;
+                                 Loop_Rec(Full_Name_Str, Must_Ignore, Hashes, Ignored, Verbose_Mode);
                               when Special_File =>
                                  Display_Message(Green, "Special file skipped: " & Full_Name_Str);
                            end case;
@@ -271,7 +277,7 @@ package body Core is
                            when Ordinary_File =>
                               Process_File(Full_Name_Str, Hashes);
                            when Directory =>
-                              Loop_Rec(Full_Name_Str, Must_Ignore, Hashes, Ignored);
+                              Loop_Rec(Full_Name_Str, Must_Ignore, Hashes, Ignored, Verbose_Mode);
                            when Special_File =>
                               Display_Message(Green, "Special file skipped: " & Full_Name_Str);
                         end case;
@@ -292,7 +298,7 @@ package body Core is
    end Loop_Rec;
    
    
-   procedure Start_Searching(Folder_Path : String; Ignore_Path : String) is
+   procedure Start_Searching(Folder_Path : String; Ignore_Path : String; Verbose_Mode : Boolean) is
       use Ada.Text_IO;
                   
       Hashes : String_Map;
@@ -303,7 +309,7 @@ package body Core is
          Populate_Ignored_List(Ignore_Path, Ignored);
          Must_Ignore := True;
       end if;
-      Loop_Rec(Folder_Path, Must_Ignore, Hashes, Ignored);
+      Loop_Rec(Folder_Path, Must_Ignore, Hashes, Ignored, Verbose_Mode);
       TUI.Display_TUI(Hashes);
       
       if Hashes.Is_Empty then
