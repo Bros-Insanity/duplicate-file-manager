@@ -21,7 +21,7 @@ You need gnat, and some libraries to be able to compile this project. All of the
 ### Build
 To build the application, run the following command :
 
-`gprbuild -d -P./duplicate-file-manager.gpr && sudo gprinstall -p -f -P./duplicate-file-manager.gpr --prefix=/usr --mode=usage`
+`gprbuild -d -P./duplicate_file_manager.gpr && sudo gprinstall -p -f -P./duplicate_file_manager.gpr --prefix=/usr --mode=usage`
 
 A whole command could be :
 
