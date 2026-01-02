@@ -14,18 +14,22 @@ dfm is a command line tool to manage your duplicated files in your system. This 
 
 You need gnat, and some libraries to be able to compile this project. All of them can be installed using `apt` by running the following command :
 
-`sudo apt install gnat gprbuild libncurses-dev libncursesada-dev`
+```
+sudo apt install gnat gprbuild libncurses-dev libncursesada-dev
+```
 
 `libncurses` is needed for the terminal user interface (tui) to work. `libncursesada-dev` is ncurses Ada bindings.
 
 ### Build
 To build the application, run the following command :
 
-`gprbuild -d -P./duplicate_file_manager.gpr && sudo gprinstall -p -f -P./duplicate_file_manager.gpr --prefix=/usr --mode=usage`
+```sh
+gprbuild -d -P./duplicate_file_manager.gpr && sudo gprinstall -p -f -P./duplicate_file_manager.gpr --prefix=/usr --mode=usage
+```
 
 A whole command could be :
 
-```
+```sh
 git clone https://github.com/Bros-Insanity/duplicate-file-manager && cd duplicate-file-manager && gprbuild -d -P./duplicate_file_manager.gpr && sudo gprinstall -p -f -P./duplicate_file_manager.gpr --prefix=/usr --mode=usage
 ```
 
@@ -46,6 +50,10 @@ When navigating through files, you can press D to delete the selected file. This
 The tests were done on a Debian 13 system. Portage to Windows and macOS is considered...
 
 ## Version changelog
+### 0.2
+- Added multithreading for file hash
+- Added ignorefile generation
+
 ### 0.1.1
 - Added verbose mode
 

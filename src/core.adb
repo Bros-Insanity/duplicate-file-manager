@@ -6,10 +6,10 @@ with Ada.Streams;
 with Ada.Streams.Stream_IO;
 with Ada.Exceptions;
 with Ada.IO_Exceptions;
-with Interfaces;
 
 with Functions;
 with TUI;
+with Multiprocessing;
 
 package body Core is
    function Compute_File_SHA256(File_Path : String) return String is
@@ -19,7 +19,7 @@ package body Core is
 
       File    : File_Type;
       Stream  : Stream_Access;
-      Buffer  : Stream_Element_Array(1 .. 4096);
+      Buffer  : Stream_Element_Array(1..4096);
       Last    : Stream_Element_Offset;
       Context : GNAT.SHA256.Context;
    begin
@@ -43,59 +43,6 @@ package body Core is
          end if;
          raise;
    end Compute_File_SHA256;
-   
-   
-   function Create_Sample(Dir : String) return Boolean is
-      use Ada.Text_IO;
-      
-      File_Path : constant String := Dir & "/ignorefile";
-      File : File_Type;
-   begin
-      Create(File => File, Mode => Out_File, Name => File_Path);
-
-      Put_Line (File, "# System files");
-      Put_Line (File, ".DS_Store");
-      Put_Line (File, "thumbs.db");
-      New_Line (File);
-      Put_Line (File, "# versioning folders");
-      Put_Line (File, ".git");
-      Put_Line (File, ".svn");
-      New_Line (File);
-      Put_Line (File, "# dependancies");
-      Put_Line (File, "node_modules");
-      Put_Line (File, "vendor");
-      New_Line (File);
-      Put_Line (File, "# full path");
-      Put_Line (File, "/home/user/temp");
-      Put_Line (File, "/var/log/debug.log");
-      New_Line (File);
-      Put_Line (File, "# build");
-      Put_Line (File, "*.o");
-      Put_Line (File, "build/");
-      Put_Line (File, "dist/");
-      New_Line (File);
-      Put_Line (File, "# other stuff");
-      Put_Line (File, ".config/");
-      Put_Line (File, ".cache/");
-      Put_Line (File, ".local/");
-      
-      Close (File);
-      return True;
-
-   exception
-      when Name_Error =>
-         Put_Line(Standard_Error, "Error: The specified path is invalid.");
-         return False;
-      when Use_Error =>
-         Put_Line(Standard_Error, "Error: Permission denied or file locked.");
-         return False;
-      when others =>
-         if Is_Open(File) then
-            Close(File);
-         end if;
-         Put_Line(Standard_Error, "An unexpected error occurred.");
-         raise;
-   end Create_Sample;
     
    
    function Trim(S : String) return String is
@@ -103,48 +50,6 @@ package body Core is
    begin
       return Ada.Strings.Fixed.Trim(S, Both);
    end Trim;
-   
-   
-   procedure Display_Duplicates(Hashes : String_Map) is
-      use Ada.Strings.Unbounded;
-      use Ada.Text_IO;
-      use String_Maps;
-      use Path_Vectors;
-   
-      Duplicate_Count : Natural := 0;
-      Total_Duplicates : Natural := 0;
-   
-      procedure Process_Entry(Position : String_Maps.Cursor) is
-         Hash : constant Unbounded_String := Key(Position);
-         Paths : constant Path_Vector := Element(Position);
-         Path_Count : constant Natural := Natural(Paths.Length);
-      begin
-         if Path_Count > 1 then
-            Duplicate_Count := Duplicate_Count + 1;
-            Total_Duplicates := Total_Duplicates + (Path_Count - 1);
-         
-            Put_Line("Duplicate #" & Duplicate_Count'Image & " (hash: " & To_String(Hash) & ") ===");
-            Put_Line("  " & Path_Count'Image & " files with identical content:");
-            for Path of Paths loop
-               Put_Line("    - " & To_String(Path));
-            end loop;
-            New_Line;
-         end if;
-      end Process_Entry;
-   
-   begin
-      Put_Line("Searching for Duplicates");
-      New_Line;
-      Hashes.Iterate(Process_Entry'Access);
-   
-      if Duplicate_Count = 0 then
-         Put_Line("No duplicates found.");
-      else
-         Put_Line("Summary");
-         Put_Line("Found" & Duplicate_Count'Image & " sets of duplicates");
-         Put_Line("Total" & Total_Duplicates'Image & " redundant files");
-      end if;
-   end Display_Duplicates;
    
    
    procedure Populate_Ignored_List(Ignore_File_Path : String; List_Of_Ignored : in out String_Set) is
@@ -166,7 +71,7 @@ package body Core is
             if Line'Length > 0 then
                if Line(Line'First) /= '#' then
                   List_Of_Ignored.Include(Line, True);
-                  Display_Message(Green, Line & " won't be taken into account.");
+                  Display_Message(Cyan, Line & " won't be taken into account.");
                end if;
             end if;
          end;
@@ -186,38 +91,13 @@ package body Core is
    end Populate_Ignored_List;
    
    
-   procedure Process_File(File_Path : String; Hashes : in out String_Map) is
-      use Ada.Strings.Unbounded;
-      use Functions;
-      use Path_Vectors;
-   
-      Hash_Value : constant String := Compute_File_SHA256(File_Path);
-      Hash_Key : constant Unbounded_String := To_Unbounded_String(Hash_Value);
-      Path : constant Unbounded_String := To_Unbounded_String(File_Path);
+   procedure Submit_File_For_Processing(File_Path : String) is
    begin
-      if Hashes.Contains(Hash_Key) then
-         declare
-            Paths : Path_Vector := Hashes.Element(Hash_Key);
-         begin
-            Paths.Append(Path);
-            Hashes.Replace(Hash_Key, Paths);
-         end;
-      else
-         declare
-            Paths : Path_Vector;
-         begin
-            Paths.Append(Path);
-            Hashes.Insert(Hash_Key, Paths);
-         end;
-      end if;
-   exception
-      when others =>
-         Display_Message(Red, "Error: Unknown error when processing file " & File_Path);
-         raise;
-   end Process_File;
+      Multiprocessing.Submit_File(File_Path);
+   end Submit_File_For_Processing;
    
 
-   procedure Loop_Rec(Path : String; Must_Ignore : Boolean; Hashes : in out String_Map; Ignored : in out String_Set; Verbose_Mode : Boolean) is
+   procedure Loop_Rec(Path : String; Must_Ignore : Boolean; Ignored : in out String_Set; Verbose_Mode : Boolean) is
       use Ada.Text_IO;
       use Ada.Directories;
       use Ada.Strings.Unbounded;
@@ -258,14 +138,14 @@ package body Core is
                            case Entry_Kind is
                               when Ordinary_File =>
                                  if Verbose_Mode then
-                                    Display_Message(Blue, "Processing file " & Full_Name_Str);
+                                    Display_Message(Blue, "Submitting file " & Full_Name_Str);
                                  end if;
-                                 Process_File(Full_Name_Str, Hashes);
+                                 Submit_File_For_Processing(Full_Name_Str);
                               when Directory =>
                                  if Verbose_Mode then
                                     Display_Message(Blue, "Looping through directory " & Full_Name_Str);
                                  end if;
-                                 Loop_Rec(Full_Name_Str, Must_Ignore, Hashes, Ignored, Verbose_Mode);
+                                 Loop_Rec(Full_Name_Str, Must_Ignore, Ignored, Verbose_Mode);
                               when Special_File =>
                                  Display_Message(Green, "Special file skipped: " & Full_Name_Str);
                            end case;
@@ -275,9 +155,9 @@ package body Core is
                      else
                         case Entry_Kind is
                            when Ordinary_File =>
-                              Process_File(Full_Name_Str, Hashes);
+                              Submit_File_For_Processing(Full_Name_Str);
                            when Directory =>
-                              Loop_Rec(Full_Name_Str, Must_Ignore, Hashes, Ignored, Verbose_Mode);
+                              Loop_Rec(Full_Name_Str, Must_Ignore, Ignored, Verbose_Mode);
                            when Special_File =>
                               Display_Message(Green, "Special file skipped: " & Full_Name_Str);
                         end case;
@@ -298,22 +178,31 @@ package body Core is
    end Loop_Rec;
    
    
-   procedure Start_Searching(Folder_Path : String; Ignore_Path : String; Verbose_Mode : Boolean) is
-      use Ada.Text_IO;
-                  
+   procedure Start_Searching(Folder_Path : String; Ignore_Path : String; Verbose_Mode : Boolean; Worker_Count : Positive) is      
+      use Functions;
+  
       Hashes : String_Map;
       Ignored : String_Set;
       Must_Ignore : Boolean := False;
    begin
+      Multiprocessing.Initialize(Worker_Count);
+      
       if Ignore_Path /= "" then
          Populate_Ignored_List(Ignore_Path, Ignored);
          Must_Ignore := True;
       end if;
-      Loop_Rec(Folder_Path, Must_Ignore, Hashes, Ignored, Verbose_Mode);
+      
+      Loop_Rec(Folder_Path, Must_Ignore, Ignored, Verbose_Mode);
+      Display_Message(Green, "Finished looping through directories.");
+
+      Multiprocessing.Finalize(Hashes);
+      
+      Multiprocessing.Shutdown;
+      
       TUI.Display_TUI(Hashes);
       
       if Hashes.Is_Empty then
-         Put_Line("No duplicates found.");
+         Functions.Display_Message(Green, "No duplicates found.");
       end if;
    end Start_Searching;
    
