@@ -2,6 +2,9 @@ with Ada.Strings.Unbounded; use Ada.Strings.Unbounded;
 with Ada.Containers.Vectors;
 with Terminal_Interface.Curses; use Terminal_Interface.Curses;
 with Ada.Directories;
+with Ada.Interrupts;
+with Ada.Interrupts.Names;
+with GNAT.OS_Lib;
 
 package body TUI is
    type Duplicate_Group is record
@@ -36,6 +39,7 @@ package body TUI is
    Show_Full_Hash : Boolean := False;
    Total_Recovered_Size : Long_Long_Integer := 0;
    Total_Duplicates : Natural := 0;
+   Processing_Time_Str : Unbounded_String := Null_Unbounded_String;
    
 
    procedure Init_Colors is
@@ -110,6 +114,38 @@ package body TUI is
       End_Windows;
    end Cleanup_Windows;
    
+   
+   protected Interrupt_Handler is
+      procedure Handle;
+      pragma Interrupt_Handler(Handle);
+   end Interrupt_Handler;
+   
+   
+      protected body Interrupt_Handler is
+      procedure Handle is
+         use GNAT.OS_Lib;
+      begin
+         Cleanup_Windows;
+         OS_Exit(130); -- killed by SIGINT
+      end Handle;
+   end Interrupt_Handler;
+   
+   
+   procedure Install_Interrupt_Handler is
+      use Ada.Interrupts;
+      use Ada.Interrupts.Names;
+   begin
+      Attach_Handler(Interrupt_Handler.Handle'Access, SIGINT);
+   end Install_Interrupt_Handler;
+
+   
+   procedure Remove_Interrupt_Handler is
+      use Ada.Interrupts;
+      use Ada.Interrupts.Names;
+   begin
+      Detach_Handler(SIGINT);
+   end Remove_Interrupt_Handler;
+
 
    function Format_Size(Size_In_Bytes : Long_Long_Integer) return String is
       KB : constant Long_Long_Integer := 1024;
@@ -185,6 +221,22 @@ package body TUI is
          return Img;
       end if;
    end Trim_Image;
+   
+   
+   function Format_Duration(D : Duration) return String is
+      Total_Seconds : constant Natural := Natural(D);
+      Hours : constant Natural := Total_Seconds / 3600;
+      Minutes : constant Natural := (Total_Seconds mod 3600) / 60;
+      Seconds : constant Natural := Total_Seconds mod 60;
+   begin
+      if Hours > 0 then
+         return Trim_Image(Hours) & "h " & Trim_Image(Minutes) & "m " & Trim_Image(Seconds) & "s";
+      elsif Minutes > 0 then
+         return Trim_Image(Minutes) & "m " & Trim_Image(Seconds) & "s";
+      else
+         return Trim_Image(Seconds) & "s";
+      end if;
+   end Format_Duration;
    
 
    function Display_Hash(Hash : String; Width : Natural) return String is
@@ -420,6 +472,16 @@ package body TUI is
       Move_Cursor(Status_Win, 0, 0);
       Add(Status_Win, "Navigation: Up/Down (groups) | Left/Right (files) | H: Toggle hash | D: Delete | Q: Quit");
       
+      if Length(Processing_Time_Str) > 0 then
+         declare
+            Time_Display : constant String := "Processing time: " & To_String(Processing_Time_Str);
+            Start_Col : constant Column_Position := Column_Position(Cols) - Column_Position(Time_Display'Length) - 1;
+         begin
+            Move_Cursor(Status_Win, 0, Start_Col);
+            Add(Status_Win, Time_Display);
+         end;
+      end if;
+      
       if Message /= "" then
          Move_Cursor(Status_Win, 1, 0);
          Add(Status_Win, Message);
@@ -643,7 +705,7 @@ package body TUI is
    end Handle_Input;
    
    
-   procedure Display_TUI(Hashes : Core.String_Map) is
+   procedure Display_TUI(Hashes : Core.String_Map; Elapsed_Time : Duration) is
    begin
       Populate_Duplicates(Hashes);
       
@@ -651,6 +713,8 @@ package body TUI is
          return;
       end if;
       
+      Processing_Time_Str := To_Unbounded_String(Format_Duration(Elapsed_Time));
+      Install_Interrupt_Handler;
       Init_Windows;
       
       begin
@@ -663,6 +727,7 @@ package body TUI is
       end;
       
       Cleanup_Windows;
+      Remove_Interrupt_Handler;
    end Display_TUI;
    
 end TUI;

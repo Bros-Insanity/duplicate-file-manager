@@ -1,6 +1,8 @@
 with Ada.Containers.Indefinite_Vectors;
 with Ada.Strings.Unbounded; use Ada.Strings.Unbounded;
 with Ada.Exceptions; use Ada.Exceptions;
+with Ada.Text_IO;
+with GNAT.OS_Lib;
 
 with Functions;
 
@@ -15,6 +17,7 @@ package body Multiprocessing is
       procedure Set_Done;
       procedure Worker_Finished;
       function Is_Done return Boolean;
+      function Remaining_Count return Natural;
    private
       Queue : String_Vectors.Vector;
       Done : Boolean := False;
@@ -56,6 +59,11 @@ package body Multiprocessing is
       begin
          return Done and Queue.Is_Empty and Active_Workers = 0;
       end Is_Done;
+      
+      function Remaining_Count return Natural is
+      begin
+         return Natural(Queue.Length) + Active_Workers;
+      end Remaining_Count;
 
    end File_Queue;
    
@@ -167,22 +175,96 @@ package body Multiprocessing is
       Queue_Instance.Enqueue(File_Path);
    end Submit_File;
    
-   procedure Finalize(Hashes : in out Core.String_Map) is
+   
+   procedure Set_Terminal_Echo(Enabled : Boolean) is
+      use GNAT.OS_Lib;
+      
+      Stty_Path :  GNAT.OS_Lib.String_Access := Locate_Exec_On_Path("stty");
+      Success : Boolean;
+   begin
+      if Stty_Path /= null then
+         declare
+            Args : Argument_List := (1 => new String'(if Enabled then "echo" else "-echo"));
+         begin
+            Spawn(Stty_Path.all, Args, Success);
+            Free(Args(1));
+         end;
+         Free(Stty_Path);
+      end if;
+   exception
+      when others =>
+         null;
+   end Set_Terminal_Echo;
+   
+   procedure Finalize(Hashes : in out Core.String_Map; Verbose_Mode : Boolean) is
+      use Ada.Text_IO;
+      
+      Time_Since_Last_Report : Duration := 0.0;
+      Report_Interval : constant Duration := 5.0;
+      Poll_Interval : constant Duration := 0.1;
+      Key : Character;
+      Key_Available : Boolean;
+      Keyboard_Readable : Boolean := True;
    begin
       Queue_Instance.Set_Done;
       
       Functions.Display_Message(Functions.Blue, "Waiting for workers to finish...");
+      if not Verbose_Mode then
+         Functions.Display_Message(Functions.Cyan, "Press R at any time to show the number of files remaining.");
+         Set_Terminal_Echo(False);
+      end if;
+      
       while not Queue_Instance.Is_Done loop
-         delay 0.1;
+         delay Poll_Interval;
+         
+         if Verbose_Mode then
+            Time_Since_Last_Report := Time_Since_Last_Report + Poll_Interval;
+            if Time_Since_Last_Report >= Report_Interval then
+               Functions.Display_Message(Functions.Cyan,
+                                         Natural'Image(Queue_Instance.Remaining_Count) & " file(s) remaining to process...");
+               Time_Since_Last_Report := 0.0;
+            end if;
+         elsif Keyboard_Readable then
+            begin
+               Get_Immediate(Key, Key_Available);
+            exception
+               when others =>
+                  Keyboard_Readable := False;
+                  Key_Available := False;
+            end;
+            
+            if Key_Available and then (Key = 'r' or Key = 'R') then
+               Functions.Display_Message(Functions.Cyan,
+                                         Natural'Image(Queue_Instance.Remaining_Count) & " file(s) remaining to process...");
+            end if;
+         end if;
       end loop;
       
-      Storage_Instance.Get_All_Hashes(Hashes);
-      Functions.Display_Message(Functions.Green, "All files processed");
-   end Finalize;
+      if not Verbose_Mode then
+    	  Set_Terminal_Echo(True);
+   	end if;
+
+      
+   	Storage_Instance.Get_All_Hashes(Hashes);
+   	Functions.Display_Message(Functions.Green, "All files processed");
+   exception
+      when others =>
+         if not Verbose_Mode then
+            Set_Terminal_Echo(True);
+         end if;
+         raise;
+   end Finalize;	
+
    
    procedure Shutdown is
    begin
       null;
    end Shutdown;
+   
+   
+   function Remaining_Files return Natural is
+   begin
+      return Queue_Instance.Remaining_Count;
+   end Remaining_Files;
    
 end Multiprocessing;

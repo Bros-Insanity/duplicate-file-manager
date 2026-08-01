@@ -6,6 +6,7 @@ with Ada.Streams;
 with Ada.Streams.Stream_IO;
 with Ada.Exceptions;
 with Ada.IO_Exceptions;
+with Ada.Real_Time;
 
 with Functions;
 with TUI;
@@ -52,7 +53,7 @@ package body Core is
    end Trim;
    
    
-   procedure Populate_Ignored_List(Ignore_File_Path : String; List_Of_Ignored : in out String_Set) is
+   procedure Populate_Ignored_List(Ignore_File_Path : String; List_Of_Ignored : in out String_Set; Verbose_Mode : Boolean) is
       use Ada.Strings.Unbounded;
       use Ada.Text_IO;
       use String_Sets;
@@ -71,7 +72,9 @@ package body Core is
             if Line'Length > 0 then
                if Line(Line'First) /= '#' then
                   List_Of_Ignored.Include(Line, True);
-                  Display_Message(Cyan, Line & " won't be taken into account.");
+                  if Verbose_Mode then
+                     Display_Message(Cyan, Line & " won't be taken into account.");
+                  end if;
                end if;
             end if;
          end;
@@ -150,7 +153,9 @@ package body Core is
                                  Display_Message(Green, "Special file skipped: " & Full_Name_Str);
                            end case;
                         else
-                           Put_Line(Full_Name_Str & " ignored.");
+                           if Verbose_Mode then
+                              Put_Line(Full_Name_Str & " ignored.");
+                           end if;
                         end if;
                      else
                         case Entry_Kind is
@@ -178,28 +183,32 @@ package body Core is
    end Loop_Rec;
    
    
-   procedure Start_Searching(Folder_Path : String; Ignore_Path : String; Verbose_Mode : Boolean; Worker_Count : Positive) is      
+   procedure Start_Searching(Folder_Path : String; Ignore_Path : String; Verbose_Mode : Boolean; Worker_Count : Positive; Start_Time : Time) is 
+      use Ada.Real_Time;
       use Functions;
   
       Hashes : String_Map;
       Ignored : String_Set;
       Must_Ignore : Boolean := False;
+      Elapsed_Time : Duration;
    begin
       Multiprocessing.Initialize(Worker_Count);
       
       if Ignore_Path /= "" then
-         Populate_Ignored_List(Ignore_Path, Ignored);
+         Populate_Ignored_List(Ignore_Path, Ignored, Verbose_Mode);
          Must_Ignore := True;
       end if;
       
       Loop_Rec(Folder_Path, Must_Ignore, Ignored, Verbose_Mode);
       Display_Message(Green, "Finished looping through directories.");
 
-      Multiprocessing.Finalize(Hashes);
+      Multiprocessing.Finalize(Hashes, Verbose_Mode);
       
       Multiprocessing.Shutdown;
       
-      TUI.Display_TUI(Hashes);
+      Elapsed_Time := To_Duration(Clock - Start_Time);
+      
+      TUI.Display_TUI(Hashes, Elapsed_Time);
       
       if Hashes.Is_Empty then
          Functions.Display_Message(Green, "No duplicates found.");

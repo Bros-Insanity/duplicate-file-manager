@@ -4,10 +4,15 @@ with Ada.Strings.Unbounded;
 with Ada.Environment_Variables;
 with Ada.Directories;
 with System.Multiprocessors;
+with Ada.Real_Time;
+with Ada.Interrupts.Names;
 
 with Functions;
 with Core;
 with Ignorefile_Handler;
+
+
+pragma Interrupt_State (Ada.Interrupts.Names.SIGINT, User);
 
 procedure DFM is
    use Ada.Text_IO;
@@ -15,6 +20,7 @@ procedure DFM is
    use Ada.Strings.Unbounded;
    use Ada.Directories;
    use System.Multiprocessors;
+   use Ada.Real_Time;
 
    use Functions;
    use Core;
@@ -27,6 +33,7 @@ procedure DFM is
    Home : constant String := Ada.Environment_Variables.Value("HOME");
    Verbose_Mode : Boolean := False;
    Num_Workers : Positive := Positive(Number_Of_CPUs);
+   Program_Start : constant Time := Clock;
 begin
    Folder := To_Unbounded_String(Home);
    while I <= Argument_Count loop
@@ -180,6 +187,6 @@ begin
       end;
    end loop;
    Put_Line("Selected folder: " & To_String(Folder));
-   Start_Searching(To_String(Folder), To_String(Ignored), Verbose_Mode, Num_Workers);
+   Start_Searching(To_String(Folder), To_String(Ignored), Verbose_Mode, Num_Workers, Program_Start);
 
 end DFM;

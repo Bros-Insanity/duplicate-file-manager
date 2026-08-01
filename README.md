@@ -53,6 +53,11 @@ When navigating through files, you can press D to delete the selected file. This
 The tests were done on a Debian 13 system. Portage to Windows and macOS is considered...
 
 ## Version changelog
+### 0.3
+- Added number of file in queue while processing
+- Added total processing time in TUI
+- Added SIGINT handler for TUI
+
 ### 0.2
 - Added multithreading for file hash
 - Added ignorefile generation
