@@ -52,6 +52,7 @@ package body Functions is
       Put_Line("  -s, --sample              PATH   Get an ignore file sample at chosen path.");
       Put_Line("  -g, --generate-ignorefile PATH   Generates an ignorefile including your hidden folders (Ex: .config, .local, etc.) at chosen path.");
       Put_Line("  -m, --multithread         NUM    Use multithreading (NUM threads) to accelerate file hash.");
+      Put_Line("  -L, --link                       Instead of deleting the files, selects a source file and replace all duplicates by a symlink to this source file.");
       Put_Line("  -v, --verbose                    Enable verbose mode, showing all the files processed.");
    end Display_Help;
 
@@ -69,6 +70,7 @@ package body Functions is
       Put_Line("  -g, --generate-ignorefile PATH   Generates an ignorefile including your hidden folders (Ex: .config, .local, etc.) at chosen path.");
       Put_Line("  -m, --multithread         NUM    Use multithreading (NUM threads) to accelerate file hash.");
       Put_Line("                                   Multithreading is enabled by default, using all the cores of your CPU. NUM must be a positive number, it is used to specify the number of cores you want to use (Ex. '... -m 8' will use 8 cores). If no number is specified, multithreading will be disabled.");
+      Put_Line("  -L, --link                       Instead of deleting the files, selects a source file and replace all duplicates by a symlink to this source file (Ex. if there's 4 duplicate files, let's say A, B, C and D and you chose A as a source, B, C and D will be replaced by symlinks to A).");
       Put_Line("  -v, --verbose                    Enable verbose mode, showing all the files processed.");
    end Display_Help_Extended;
 

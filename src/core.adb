@@ -183,7 +183,7 @@ package body Core is
    end Loop_Rec;
    
    
-   procedure Start_Searching(Folder_Path : String; Ignore_Path : String; Verbose_Mode : Boolean; Worker_Count : Positive; Start_Time : Time) is 
+   procedure Start_Searching(Folder_Path : String; Ignore_Path : String; Verbose_Mode : Boolean; Worker_Count : Positive; Start_Time : Time; Use_Link : Boolean) is 
       use Ada.Real_Time;
       use Functions;
   
@@ -208,7 +208,7 @@ package body Core is
       
       Elapsed_Time := To_Duration(Clock - Start_Time);
       
-      TUI.Display_TUI(Hashes, Elapsed_Time);
+      TUI.Display_TUI(Hashes, Elapsed_Time, Use_Link);
       
       if Hashes.Is_Empty then
          Functions.Display_Message(Green, "No duplicates found.");

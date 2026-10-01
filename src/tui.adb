@@ -37,6 +37,7 @@ package body TUI is
    
    Duplicates : Duplicate_Vectors.Vector;
    Show_Full_Hash : Boolean := False;
+   Use_Link : Boolean := False;
    Total_Recovered_Size : Long_Long_Integer := 0;
    Total_Duplicates : Natural := 0;
    Processing_Time_Str : Unbounded_String := Null_Unbounded_String;
@@ -79,7 +80,6 @@ package body TUI is
       Left_Width := Line_Count(Column_Count'(Cols / 2));
       Right_Height := Lines - Info_Height - 3;
       Right_Width := Line_Count(Cols - Column_Count(Left_Width) - 3);
-      
       Info_Win := Create(Number_Of_Lines => Info_Height,
                          Number_Of_Columns => Cols,
                          First_Line_Position => 0,
@@ -380,7 +380,7 @@ package body TUI is
    end Display_Left_Panel;
    
 
-   procedure Display_Right_Panel is
+   procedure Display_Right_Panel(Link_Mode : Boolean) is
       Y : Line_Position := 2;
       Max_Display : constant Natural := Natural(Right_Height) - 3;
       Start_Index : Positive := 1;
@@ -411,7 +411,11 @@ package body TUI is
          end if;
          
          Move_Cursor(Right_Win, 1, 1);
-         Add(Right_Win, "D: Delete selected file");
+         if Link_Mode then
+            Add(Right_Win, "S: Select file as symlink source");
+         else
+            Add(Right_Win, "D: Delete selected file");
+         end if;
          
          if Current_File > Max_Display then
             Start_Index := Current_File - Max_Display + 1;
@@ -457,7 +461,7 @@ package body TUI is
    end Display_Right_Panel;
    
    
-   procedure Display_Status(Message : String := "") is
+   procedure Display_Status(Message : String := ""; Link_Mode : Boolean) is
       Lines : Line_Count;
       Cols : Column_Count;
    begin
@@ -470,7 +474,11 @@ package body TUI is
       end if;
       
       Move_Cursor(Status_Win, 0, 0);
-      Add(Status_Win, "Navigation: Up/Down (groups) | Left/Right (files) | H: Toggle hash | D: Delete | Q: Quit");
+      if Link_Mode then
+         Add(Status_Win, "Navigation: Up/Down (groups) | Left/Right (files) | H: Toggle hash | S: Source | Q: Quit");
+      else
+         Add(Status_Win, "Navigation: Up/Down (groups) | Left/Right (files) | H: Toggle hash | D: Delete | Q: Quit");
+      end if;
       
       if Length(Processing_Time_Str) > 0 then
          declare
@@ -495,16 +503,16 @@ package body TUI is
    end Display_Status;
    
    
-   procedure Redraw_Screen(Message : String := "") is
+   procedure Redraw_Screen(Message : String := ""; Link_Mode : Boolean) is
    begin
       Display_Info_Panel;
       Display_Left_Panel;
-      Display_Right_Panel;
-      Display_Status(Message);
+      Display_Right_Panel(Link_Mode);
+      Display_Status(Message, Link_Mode);
    end Redraw_Screen;
    
    
-   function Confirm_Delete(File_Path : String) return Boolean is
+   function Confirm_Delete(File_Path : String; Link_Mode : Boolean) return Boolean is
       Confirm_Win : Window;
       Lines : Line_Count;
       Cols : Column_Count;
@@ -530,14 +538,22 @@ package body TUI is
       end if;
       
       Move_Cursor(Confirm_Win, 0, 2);
-      Add(Confirm_Win, " Confirm Delete ");
+      if Link_Mode then
+         Add(Confirm_Win, " Confirm Source ");
+      else
+         Add(Confirm_Win, " Confirm Delete ");
+      end if;
       
       if Has_Colors then
          Set_Color_Pair(Confirm_Win, Color_Pair_Normal);
       end if;
       
       Move_Cursor(Confirm_Win, 2, 2);
-      Add(Confirm_Win, "Delete this file?");
+      if Link_Mode then
+         Add(Confirm_Win, "Use this file?");
+      else
+         Add(Confirm_Win, "Delete this file?");
+      end if;
       
       Move_Cursor(Confirm_Win, 3, 2);
       declare
@@ -571,7 +587,30 @@ package body TUI is
    end Confirm_Delete;
    
    
-   procedure Delete_File is
+   function Create_Symlink(Target : String; Link_Name : String) return Boolean is
+      use GNAT.OS_Lib;
+      Ln_Path : GNAT.OS_Lib.String_Access := Locate_Exec_On_Path("ln");
+      Success : Boolean := False;
+   begin
+      if Ln_Path /= null then
+         declare
+            Args : Argument_List := (1 => new String'("-s"), 2 => new String'(Target), 3 => new String'(Link_Name));
+         begin
+            Spawn(Ln_Path.all, Args, Success);
+            Free(Args(1));
+            Free(Args(2));
+            Free(Args(3));
+         end;
+         Free(Ln_Path);
+      end if;
+      return Success;
+   exception
+      when others =>
+         return False;
+   end Create_Symlink;
+   
+   
+   procedure Delete_File(Link_Mode : Boolean) is
       use Ada.Directories;
       use Core.Path_Vectors;
       
@@ -579,7 +618,7 @@ package body TUI is
       File_Path : constant String := To_String(Group.Paths.Element(Current_File));
       File_Size_Value : Long_Long_Integer;
    begin
-      if Confirm_Delete(File_Path) then
+      if Confirm_Delete(File_Path, Link_Mode) then
          begin
             File_Size_Value := Long_Long_Integer(Size(File_Path));
             
@@ -594,14 +633,14 @@ package body TUI is
                Duplicates.Delete(Current_Group);
                
                if Duplicates.Is_Empty then
-                  Redraw_Screen("All duplicates resolved !");
+                  Redraw_Screen("All duplicates resolved !", Link_Mode);
                elsif Current_Group > Positive(Duplicates.Length) then
                   Current_Group := Positive(Duplicates.Length);
                   Current_File := 1;
-                  Redraw_Screen("File deleted successfully !");
+                  Redraw_Screen("File deleted successfully !", Link_Mode);
                else
                   Current_File := 1;
-                  Redraw_Screen("File deleted successfully !");
+                  Redraw_Screen("File deleted successfully !", Link_Mode);
                end if;
             else
                Duplicates.Replace_Element(Current_Group, Group);
@@ -610,16 +649,83 @@ package body TUI is
                   Current_File := Natural(Group.Paths.Length);
                end if;
                
-               Redraw_Screen("File deleted successfully!");
+               Redraw_Screen("File deleted successfully !", Link_Mode);
             end if;
          exception
             when others =>
-               Redraw_Screen("Error: Could not delete file!");
+               Redraw_Screen("Error: Could not delete file!", Link_Mode);
          end;
       else
-         Redraw_Screen("Deletion cancelled.");
+         Redraw_Screen("Deletion cancelled.", Link_Mode);
       end if;
    end Delete_File;
+   
+   
+   procedure Make_Symlink_Source(Link_Mode : Boolean) is
+      use Ada.Directories;
+      use Core.Path_Vectors;
+      
+      Group : constant Duplicate_Group := Duplicates.Element(Current_Group);
+      Source_Path : constant String := To_String(Group.Paths.Element(Current_File));
+      Links_Created : Natural := 0;
+      Links_Failed : Natural := 0;
+   begin
+      if Confirm_Delete(Source_Path, Link_Mode) then
+         begin
+            for I in 1 .. Natural(Group.Paths.Length) loop
+               if I /= Current_File then
+                  declare
+                     Target_Path : constant String := To_String(Group.Paths.Element(I));
+                     Target_Size : Long_Long_Integer := 0;
+                  begin
+                     begin
+                        Target_Size := Long_Long_Integer(Size(Target_Path));
+                     exception
+                        when others =>
+                           Target_Size := 0;
+                     end;
+                     
+                     Delete_File(Target_Path);
+                     
+                     if Create_Symlink(Source_Path, Target_Path) then
+                        Links_Created := Links_Created + 1;
+                        Total_Recovered_Size := Total_Recovered_Size - Target_Size;
+                        Total_Duplicates := Total_Duplicates - 1;
+                     else
+                        Links_Failed := Links_Failed + 1;
+                     end if;
+                  exception
+                     when others =>
+                        Links_Failed := Links_Failed + 1;
+                  end;
+               end if;
+            end loop;
+            
+            Duplicates.Delete(Current_Group);
+            Current_File := 1;
+            
+            if Duplicates.Is_Empty then
+               Current_Group := 1;
+               Redraw_Screen("All duplicates resolved !", Link_Mode);
+            else
+               if Current_Group > Positive(Duplicates.Length) then
+                  Current_Group := Positive(Duplicates.Length);
+               end if;
+               if Links_Failed > 0 then
+                  Redraw_Screen(Trim_Image(Links_Created) & " symlink(s) created, " &
+                                Trim_Image(Links_Failed) & " failed.", Link_Mode);
+               else
+                  Redraw_Screen(Trim_Image(Links_Created) & " symlink(s) created successfully !", Link_Mode);
+               end if;
+            end if;
+         exception
+            when others =>
+               Redraw_Screen("Error: Could not create symlinks!", Link_Mode);
+         end;
+      else
+         Redraw_Screen("Operation cancelled.", Link_Mode);
+      end if;
+   end Make_Symlink_Source;
    
    
    procedure Populate_Duplicates(Hashes : Core.String_Map) is
@@ -651,7 +757,7 @@ package body TUI is
    end Populate_Duplicates;
    
    
-   procedure Handle_Input is
+   procedure Handle_Input(Link_Mode : Boolean) is
       C : Key_Code;
       Files_Count : Natural;
    begin
@@ -681,15 +787,53 @@ package body TUI is
                if Current_File < Files_Count then
                   Current_File := Current_File + 1;
                end if;
+               
+                        when Key_Next_Page =>
+               declare
+                  Max_Display : constant Positive :=
+                    Positive'Max(1, Natural(Left_Height) - 3);
+               begin
+                  if Current_Group + Max_Display <= Positive(Duplicates.Length) then
+                     Current_Group := Current_Group + Max_Display;
+                  else
+                     Current_Group := Positive(Duplicates.Length);
+                  end if;
+                  Current_File := 1;
+               end;
+
+            when Key_Previous_Page =>
+               declare
+                  Max_Display : constant Positive :=
+                    Positive'Max(1, Natural(Left_Height) - 3);
+               begin
+                  if Current_Group > Max_Display then
+                     Current_Group := Current_Group - Max_Display;
+                  else
+                     Current_Group := 1;
+                  end if;
+                  Current_File := 1;
+               end;
             
             when Character'Pos('h') | Character'Pos('H') =>
                Show_Full_Hash := not Show_Full_Hash;
                
             when Character'Pos('d') | Character'Pos('D') =>
-               if not Duplicates.Is_Empty then
-                  Delete_File;
-                  if Duplicates.Is_Empty then
-                     exit;
+               if not Link_Mode then
+                  if not Duplicates.Is_Empty then
+                     Delete_File(Link_Mode);
+                     if Duplicates.Is_Empty then
+                        exit;
+                     end if;
+                  end if;
+               end if;
+               
+            when Character'Pos('s') | Character'Pos('S') =>
+               if Link_Mode then
+                  if not Duplicates.Is_Empty then
+                     Make_Symlink_Source(Link_Mode);
+                     if Duplicates.Is_Empty then
+                        exit;
+                     end if;
                   end if;
                end if;
                
@@ -700,13 +844,14 @@ package body TUI is
                null;
          end case;
          
-         Redraw_Screen;
+         Redraw_Screen("", Use_Link);
       end loop;
    end Handle_Input;
    
    
-   procedure Display_TUI(Hashes : Core.String_Map; Elapsed_Time : Duration) is
+   procedure Display_TUI(Hashes : Core.String_Map; Elapsed_Time : Duration; Link_Mode : Boolean := False) is
    begin
+      Use_Link := Link_Mode;
       Populate_Duplicates(Hashes);
       
       if Duplicates.Is_Empty then
@@ -718,8 +863,8 @@ package body TUI is
       Init_Windows;
       
       begin
-         Redraw_Screen;
-         Handle_Input;
+         Redraw_Screen("", Use_Link);
+         Handle_Input(Use_Link);
       exception
          when others =>
             Cleanup_Windows;
