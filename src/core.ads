@@ -39,5 +39,5 @@ package Core is
    
    procedure Populate_Ignored_List(Ignore_File_Path : String; List_Of_Ignored : in out String_Set; Verbose_Mode : Boolean);
    
-   procedure Start_Searching(Folder_Path : String; Ignore_Path : String; Verbose_Mode : Boolean; Worker_Count : Positive; Start_Time : Time);
+   procedure Start_Searching(Folder_Path : String; Ignore_Path : String; Verbose_Mode : Boolean; Worker_Count : Positive; Start_Time : Time; Use_Link : Boolean);
 end Core;

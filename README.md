@@ -1,5 +1,5 @@
 # duplicate-file-manager
-![GitHub](https://img.shields.io/badge/Version-0.1-purple) ![GitHub](https://img.shields.io/badge/License-MIT-blue) ![GitHub](https://img.shields.io/badge/Build-Passing-gree)
+![GitHub](https://img.shields.io/badge/Version-0.4-purple) ![GitHub](https://img.shields.io/badge/License-MIT-blue) ![GitHub](https://img.shields.io/badge/Build-Passing-gree)
 
 ![](demo.png)
 
@@ -45,6 +45,7 @@ Usage: dfm [OPTIONS]
         -g, --generate-ignorefile PATH   Generates an ignorefile including your hidden folders (Ex: .config, .local, etc.) at chosen path.
         -m, --multithread         NUM    Use multithreading (NUM threads) to accelerate file hash.
                                          Multithreading is enabled by default, using all the cores of your CPU. NUM must be a positive number, it is used to specify the number of cores you want to use (Ex. '... -m 8' will use 8 cores). If no number is specified, multithreading will be disabled.
+        -L, --link                       Instead of deleting the files, selects a source file and replace all duplicates by a symlink to this source file (Ex. if there's 4 duplicate files, let's say A, B, C and D and you chose A as a source, B, C and D will be replaced by symlinks to A).
         -v, --verbose                    Enable verbose mode, showing all the files processed.
 ```
 
@@ -53,6 +54,10 @@ When navigating through files, you can press D to delete the selected file. This
 The tests were done on a Debian 13 system. Portage to Windows and macOS is considered...
 
 ## Version changelog
+### 0.4
+- Added possibility to create symlink to a file instead of deleting the duplicated file (`-L` flag)
+- Added page up/page down control to navigate faster through the sets
+
 ### 0.3
 - Added number of file in queue while processing
 - Added total processing time in TUI

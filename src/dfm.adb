@@ -34,6 +34,7 @@ procedure DFM is
    Verbose_Mode : Boolean := False;
    Num_Workers : Positive := Positive(Number_Of_CPUs);
    Program_Start : constant Time := Clock;
+   Use_Link : Boolean := False;
 begin
    Folder := To_Unbounded_String(Home);
    while I <= Argument_Count loop
@@ -163,6 +164,9 @@ begin
          elsif Arg = "-v" or Arg = "--verbose" then
             Verbose_Mode := True;
 
+         elsif Arg = "-L" or Arg = "--link" then
+            Use_Link := True;
+
          elsif Arg = "-m" or Arg = "--multithread" then
             if I < Argument_Count then
                I := I+1;
@@ -187,6 +191,6 @@ begin
       end;
    end loop;
    Put_Line("Selected folder: " & To_String(Folder));
-   Start_Searching(To_String(Folder), To_String(Ignored), Verbose_Mode, Num_Workers, Program_Start);
+   Start_Searching(To_String(Folder), To_String(Ignored), Verbose_Mode, Num_Workers, Program_Start, Use_Link);
 
 end DFM;
